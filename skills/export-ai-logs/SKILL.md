@@ -26,20 +26,29 @@ Exports the current conversation transcript to `ai-sessions/ai-logs.md` in the p
    ~/.cursor/projects/Users-wellington-Documents-projects-pessoal-playwright-typescript/agent-transcripts/<uuid>/<uuid>.jsonl
    ```
 
-2. **Run the export script** from the project root, passing the transcript path and a short session title:
+2. **Check how many turns were already exported** for this UUID by looking at the last entry in `ai-sessions/ai-logs.md`. The turn number after the last `### Turn N` heading is your watermark.
+
+3. **Run the export script** from the project root:
 
    ```bash
+   # First export for this session (all turns)
    node scripts/export-ai-logs.js \
      ~/.cursor/projects/Users-wellington-Documents-projects-pessoal-playwright-typescript/agent-transcripts/<uuid>/<uuid>.jsonl \
      "Short Session Title"
+
+   # Continuing the same session (skip already-exported turns)
+   node scripts/export-ai-logs.js \
+     ~/.cursor/projects/Users-wellington-Documents-projects-pessoal-playwright-typescript/agent-transcripts/<uuid>/<uuid>.jsonl \
+     "Short Session Title" \
+     --from-turn 4
    ```
 
-3. **Verify output** — the script prints a confirmation:
+4. **Verify output** — the script prints a confirmation:
    ```
    ✓ Appended ai-sessions/ai-logs.md
-     Session: Short Session Title
-     Turns:   3
-     UUID:    <uuid>
+     Session:    Short Session Title
+     Turns:      2 (turns 4–5 of 5)
+     UUID:       <uuid>
    ```
 
 ## Behaviour
@@ -48,6 +57,8 @@ Exports the current conversation transcript to `ai-sessions/ai-logs.md` in the p
 |-----------|--------|
 | `ai-logs.md` does not exist | Creates the file with a `# AI Session Logs` header |
 | `ai-logs.md` already exists | Appends a `---` separator followed by the new session block |
+| `--from-turn N` provided | Skips the first N−1 turns; section heading reads `Session (continued): …` |
+| `--from-turn N` exceeds total turns | Prints a "Nothing to export" notice and exits cleanly |
 
 ## Output format
 

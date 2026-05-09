@@ -325,3 +325,157 @@ Let me first read the skill creation skill to understand how to create a proper 
 Then I'll think about how to export the conversation. Looking at the agent transcripts system, there's a folder at `/Users/wellington/.cursor/projects/Users-wellington-Documents-projects-pessoal-playwright-typescript/agent-transcripts` that contains JSONL files. 
 
 Now I need to locate the current conversation's transcript, parse it into markdown format, and append it to the log file. Let me start by examining the skill creation system and the agent transcripts structure to understand how to build this properly.
+
+---
+
+## Session (continued): Scenario 2 — Dynamic Loading — Friday, May 8, 2026, 10:15 PM (UTC-3)
+**Transcript ID:** `dd89b532-1e6c-41f8-840a-5fa449951715`
+
+### Turn 4
+
+**User:**
+Scenario 2 — Dynamic content
+
+Test the dynamic loading page (/dynamic_loading/1). Click the Start button and assert that the finish text appears correctly. This scenario is intentionally tricky in CI — handle it properly.
+
+This page have a start button that triggers a loading that once it's done shows the success Hello World! Message
+
+Element sample: 
+<div id="content" class="large-12 columns">
+        <script>
+  $(function(){
+    $('#start button').click(function(){
+      $('#start').hide();
+      $('#start').before("<div id='loading'>Loading... <img src='/img/ajax-loader.gif'></div>");
+      setTimeout(function() {
+        $('#loading').hide();
+        $('#finish').show();
+      } , 5000 );
+    });
+  });
+</script>
+
+<div class="example">
+  <h3>Dynamically Loaded Page Elements</h3>
+  <h4>Example 1: Element on page that is hidden</h4>
+
+  <br>
+
+  <div id="start">
+    <button>Start</button>
+  </div>
+
+  <div id="finish" style="display:none">
+    <h4>Hello World!</h4>
+  </div>
+
+</div>
+
+      </div>
+
+Proceed with the second phase following the existing patterns in the project, feel free to use any agents you need inside agents folder and as usual refeer to AGENTS.md
+
+**Assistant:**
+Let me check the existing patterns before writing anything new.
+
+The user wants to implement Scenario 2 — Dynamic content testing. Let me analyze what's needed:
+
+1. Test `/dynamic_loading/1` page
+2. Click "Start" button
+3. Assert "Hello World!" appears after loading
+4. Handle CI flakiness properly (the page has a 5-second timeout)
+
+Following existing patterns:
+- Create a `DynamicLoadingPage` extending `BasePage`
+- Add test data if needed (or just a simple spec)
+- Write the spec in `tests/dynamic-loading/`
+
+Let me look at the existing patterns first to make sure I follow them correctly.
+
+Key considerations for CI reliability:
+
+
+- The page hides `#finish` div and shows it after 5 seconds, so I need to use Playwright's auto-waiting with `expect(locator).toBeVisible()` rather than manual timeouts
+- Since the `#finish` div is already in the DOM but hidden, I should use `toBeVisible()` instead of `toBeAttached()`
+- I'll set a reasonable timeout like 10 seconds for this assertion to account for the 5-second delay plus CI overhead
+
+Now I'll follow the existing architecture by creating a `DynamicLoadingPage` class extending `BasePage` and then writing the test spec.
+
+For the page object, I need methods to navigate to the dynamic loading page, click the Start button, and access the finish element's text. The spec will navigate to the page, trigger the loading, and verify the finish message appears within the timeout window. Now I'm creating the test spec file that navigates to the page, clicks the Start button, and waits for "Hello World!" to appear with proper CI timeout handling. For the locators, I'll use user-facing selectors like `getByRole` for the button and `getByText` for the assertion, though I need to be mindful that the text might already exist in the DOM but hidden.
+
+Good. Now I have the full picture. Let me build the three pieces: page object, fixture extension, and spec.
+
+Passes in 7.4s (5s from the page's own `setTimeout` + navigation + click overhead). Run the full suite to confirm no regressions:
+
+4/4 green. Here's a breakdown of every decision made.
+
+---
+
+### What was added
+
+**`src/pages/DynamicLoadingPage.ts`**
+
+```1:28:src/pages/DynamicLoadingPage.ts
+import { Locator, Page } from '@playwright/test';
+import { BasePage } from './BasePage';
+
+const FINISH_VISIBLE_TIMEOUT = 10_000;
+
+export class DynamicLoadingPage extends BasePage {
+  private readonly startButton: Locator;
+  private readonly finishContainer: Locator;
+
+  constructor(page: Page) {
+    super(page);
+    this.startButton = page.getByRole('button', { name: 'Start' });
+    this.finishContainer = page.locator('#finish');
+  }
+  ...
+```
+
+**`src/fixtures/index.ts`** — `dynamicLoadingPage` fixture added alongside the existing `loginPage`, following the same pattern.
+
+**`tests/dynamic-loading/dynamic-loading.spec.ts`**
+
+```1:11:tests/dynamic-loading/dynamic-loading.spec.ts
+import { test, expect } from '../../src/fixtures';
+
+test.describe('Dynamic Loading', () => {
+  test('shows finish text after loading completes', async ({ dynamicLoadingPage }) => {
+    await dynamicLoadingPage.goto();
+    await dynamicLoadingPage.clickStart();
+    await dynamicLoadingPage.waitForFinish();
+
+    await expect(dynamicLoadingPage.finishHeading).toBeVisible();
+    await expect(dynamicLoadingPage.finishHeading).toHaveText('Hello World!');
+  });
+});
+```
+
+---
+
+### Why this is CI-safe
+
+The page hard-codes a 5-second `setTimeout` before revealing `#finish`. Three things protect this in CI:
+
+| Concern | Solution |
+|---|---|
+| 5s JS delay before element appears | `waitFor({ state: 'visible', timeout: 10_000 })` — gives 2× headroom over the known delay |
+| Element is in the DOM but hidden (`display:none`) | `waitFor({ state: 'visible' })` waits for CSS visibility, not DOM presence — correct for this exact pattern |
+| No fixed sleeps | Zero `waitForTimeout` calls — Playwright polls the observable UI state instead |
+| CI retries | `playwright.config.ts` already sets `retries: 2` in CI — if a network hiccup delays the page, the test retries cleanly |
+
+---
+
+### Turn 5
+
+**User:**
+Now I invoke the export-ai-logs skill so we can append the most recent chat about Scenario 2 that we've just done!
+
+**Assistant:**
+The user wants to invoke the export-ai-logs skill to append the current conversation to ai-sessions/ai-logs.md. Let me read the skill first, then find the transcript UUID and run the export.
+
+I need to find the current transcript. Based on what I know, the agent-transcripts folder path is:
+`/Users/wellington/.cursor/projects/Users-wellington-Documents-projects-pessoal-playwright-typescript/agent-transcripts/`
+
+Let me list it to find the UUID(s).

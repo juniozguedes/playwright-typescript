@@ -4,11 +4,26 @@
 const fs = require('fs');
 const path = require('path');
 
-const [, , transcriptPath, sessionTitle] = process.argv;
+function parseArgs(argv) {
+  const positional = [];
+  let fromTurn = 1;
+
+  for (let i = 2; i < argv.length; i++) {
+    if (argv[i] === '--from-turn' && argv[i + 1]) {
+      fromTurn = parseInt(argv[++i], 10);
+    } else {
+      positional.push(argv[i]);
+    }
+  }
+
+  return { transcriptPath: positional[0], sessionTitle: positional[1], fromTurn };
+}
+
+const { transcriptPath, sessionTitle, fromTurn } = parseArgs(process.argv);
 
 if (!transcriptPath) {
   console.error(
-    'Usage: node scripts/export-ai-logs.js <path/to/transcript.jsonl> [session-title]'
+    'Usage: node scripts/export-ai-logs.js <path/to/transcript.jsonl> [session-title] [--from-turn N]'
   );
   process.exit(1);
 }
@@ -37,7 +52,7 @@ function buildLog() {
   const raw = fs.readFileSync(transcriptPath, 'utf-8');
   const lines = raw.split('\n').filter(Boolean);
 
-  const turns = [];
+  const allTurns = [];
   let currentUserText = null;
   let assistantChunks = [];
   let sessionDate = null;
@@ -55,7 +70,7 @@ function buildLog() {
 
     if (role === 'user') {
       if (currentUserText !== null) {
-        turns.push({ user: currentUserText, assistant: assistantChunks.join('\n\n') });
+        allTurns.push({ user: currentUserText, assistant: assistantChunks.join('\n\n') });
       }
       const rawText = content.find((b) => b.type === 'text')?.text ?? '';
       if (!sessionDate) sessionDate = extractTimestamp(rawText);
@@ -68,13 +83,14 @@ function buildLog() {
   }
 
   if (currentUserText !== null) {
-    turns.push({ user: currentUserText, assistant: assistantChunks.join('\n\n') });
+    allTurns.push({ user: currentUserText, assistant: assistantChunks.join('\n\n') });
   }
 
-  return { turns, sessionDate };
+  const turns = allTurns.slice(fromTurn - 1);
+  return { turns, allTurns, sessionDate };
 }
 
-function formatSession(turns, sessionDate, title, uuid) {
+function formatSession(turns, sessionDate, title, uuid, startTurn) {
   const date = sessionDate ?? new Date().toLocaleDateString('en-US', {
     weekday: 'long',
     year: 'numeric',
@@ -82,9 +98,14 @@ function formatSession(turns, sessionDate, title, uuid) {
     day: 'numeric',
   });
 
+  const isPartial = startTurn > 1;
+  const heading = isPartial
+    ? `## Session (continued): ${title} — ${date}`
+    : `## Session: ${title} — ${date}`;
+
   const turnBlocks = turns
     .map((t, i) => {
-      const num = i + 1;
+      const num = startTurn + i;
       return [
         `### Turn ${num}`,
         '',
@@ -98,7 +119,7 @@ function formatSession(turns, sessionDate, title, uuid) {
     .join('\n\n---\n\n');
 
   return [
-    `## Session: ${title} — ${date}`,
+    heading,
     `**Transcript ID:** \`${uuid}\``,
     '',
     turnBlocks,
@@ -110,8 +131,14 @@ function main() {
   const uuid = path.basename(path.dirname(transcriptPath));
   const title = sessionTitle ?? 'AI Session';
 
-  const { turns, sessionDate } = buildLog();
-  const sessionBlock = formatSession(turns, sessionDate, title, uuid);
+  const { turns, allTurns, sessionDate } = buildLog();
+
+  if (turns.length === 0) {
+    console.log(`Nothing to export — no turns found at or after turn ${fromTurn} (total: ${allTurns.length}).`);
+    return;
+  }
+
+  const sessionBlock = formatSession(turns, sessionDate, title, uuid, fromTurn);
 
   fs.mkdirSync(path.dirname(outputPath), { recursive: true });
 
@@ -123,9 +150,9 @@ function main() {
   }
 
   console.log(`✓ ${exists ? 'Appended' : 'Created'} ${outputPath}`);
-  console.log(`  Session: ${title}`);
-  console.log(`  Turns:   ${turns.length}`);
-  console.log(`  UUID:    ${uuid}`);
+  console.log(`  Session:    ${title}`);
+  console.log(`  Turns:      ${turns.length} (turns ${fromTurn}–${fromTurn + turns.length - 1} of ${allTurns.length})`);
+  console.log(`  UUID:       ${uuid}`);
 }
 
 main();
