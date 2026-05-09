@@ -55,11 +55,33 @@ src/
 tests/
   login/        Login flow specs (data-driven, 3 scenarios)
 
+scripts/
+  export-ai-logs.js   Exports a Cursor conversation transcript to ai-sessions/ai-logs.md
+
+skills/
+  pr-reviewer/        Code review before push
+  export-ai-logs/     Export and append AI session logs
+
+ai-sessions/
+  ai-logs.md          Appended log of all AI conversations in this project
+
 .github/
   workflows/    GitHub Actions CI pipeline
 
 playwright.config.ts   Central config: timeouts, reporters, artifacts, baseURL
 ```
+
+## Export AI session logs
+
+After any Cursor chat session, append it to `ai-sessions/ai-logs.md`:
+
+```bash
+node scripts/export-ai-logs.js \
+  ~/.cursor/projects/Users-wellington-Documents-projects-pessoal-playwright-typescript/agent-transcripts/<uuid>/<uuid>.jsonl \
+  "Short Session Title"
+```
+
+The file is created on first run. Subsequent runs append — previous sessions are never overwritten.
 
 ### Artifacts on failure
 
